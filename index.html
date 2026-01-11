@@ -3,12 +3,6 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
-
-  <!-- ✅ Google AdSense (Site verification / Auto Ads loader) -->
-  <script async
-    src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7817653676750862"
-    crossorigin="anonymous"></script>
-
   <title>SURA GAMES - Flappy Meme</title>
   <style>
     :root{
@@ -36,30 +30,28 @@
       touch-action: pan-y;
     }
 
-    /* ✅ IMPORTANT FIX:
-       The select/splash layers were position:fixed which often prevents scroll on iOS.
-       Make them absolute so the browser can scroll naturally.
+    /* ✅ Layers now SCROLL on phone:
+       - position: fixed keeps it full screen
+       - allow vertical scrolling inside each layer
+       - IMPORTANT: use height:100dvh (or 100vh fallback) + align-items:flex-start so content can extend
     */
     .layer{
-      position:absolute;              /* ✅ FIXED: was fixed */
+      position:fixed;
       inset:0;
       display:flex;
       flex-direction:column;
       align-items:center;
-      justify-content:flex-start;
+      justify-content:flex-start;     /* ✅ so the top is reachable and content can scroll */
       padding:24px;
       background:#000;
-
-      overflow-y:auto;
+      overflow-y:auto;               /* ✅ scroll inside layer */
       -webkit-overflow-scrolling:touch;
-
-      min-height:100vh;
-      min-height:100dvh;
-
+      height:100vh;
+      height:100dvh;                 /* ✅ better on iOS */
       overscroll-behavior: contain;
       touch-action: pan-y;
     }
-    .hidden{ display:none !suggest work; }
+    .hidden{ display:none !important; }
 
     /* Splash */
     .splash{
@@ -97,7 +89,7 @@
       font-size: 13px;
       opacity:0.9;
       text-align:center;
-      padding-bottom: 26px;
+      padding-bottom: 26px; /* extra scroll room */
     }
     .disclaimerBox{
       margin-top:14px;
@@ -300,7 +292,6 @@
       align-items:stretch;
       justify-content:stretch;
       background:#000;
-      z-index:20;
     }
 
     /* ✅ Lock scroll only during gameplay */
@@ -329,7 +320,7 @@
       justify-content:space-between;
       pointer-events:none;
       gap:10px;
-      z-index:25;
+      z-index:5;
     }
     .pill{
       pointer-events:none;
@@ -348,7 +339,7 @@
       position:fixed;
       right: 10px;
       bottom: 10px;
-      z-index:26;
+      z-index:6;
       max-width: min(520px, 64vw);
       color: rgba(169,179,214,0.78);
       font-size: 11px;
@@ -373,7 +364,7 @@
       padding:24px;
       background: rgba(0,0,0,.55);
       backdrop-filter: blur(6px);
-      z-index:30;
+      z-index:10;
     }
     .overlay.hidden{ display:none !important; }
     .overlayBox{
@@ -470,6 +461,7 @@
           <div class="meta"><div class="name">SURA</div></div>
         </div>
 
+        <!-- ✅ FIXED: must match key in CHARACTERS -->
         <div class="card" data-char="prithviraj">
           <div class="avatar"><img src="prithviraj.png" alt="Sojappan" onerror="this.style.display='none'"></div>
           <div class="meta"><div class="name">SOJAPPAN</div></div>
@@ -498,9 +490,6 @@
         <div>Tip: iPhone users might need 1 tap to allow audio.</div>
       </div>
     </div>
-
-    <!-- ✅ adds extra scroll space so last cards are easy to reach on iPhone -->
-    <div style="height:28px"></div>
   </section>
 
   <!-- GAME -->
@@ -556,6 +545,7 @@
   const loadingMusic = document.getElementById('loadingMusic');
   const gameDisclaimer = document.getElementById('gameDisclaimer');
 
+  // ✅ helper: lock/unlock scroll for iOS properly
   function setScrollLock(isLocked){
     if (isLocked){
       document.body.classList.add('game-active');
@@ -573,9 +563,11 @@
     thoppi:{ label: 'THOPPI', imgSrc: 'thoppi.png', jumpSrc: 'thoppi_jump.mp3', dieSrc: 'thoppi_die.mp3', comingSoon:true },
   };
 
+  let selectedKey = null;
   let birdImg = new Image();
   let jumpSfx = new Audio();
   let dieSfx  = new Audio();
+
   let dyingLock = false;
 
   // ---------- FREEZE-ON-DEATH ----------
@@ -583,8 +575,11 @@
   let deathSnapshot = null;
 
   function captureDeathSnapshot(){
-    try{ deathSnapshot = ctx.getImageData(0, 0, canvas.width, canvas.height); }
-    catch(e){ deathSnapshot = null; }
+    try{
+      deathSnapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    } catch(e){
+      deathSnapshot = null;
+    }
   }
   function drawDeathSnapshot(){
     if (!deathSnapshot) return false;
@@ -593,11 +588,11 @@
       ctx.putImageData(deathSnapshot, 0, 0);
       ctx.setTransform(DPR,0,0,DPR,0,0);
       return true;
-    } catch(e){ return false; }
+    } catch(e){
+      return false;
+    }
   }
 
-  // NOTE: Your JS below is unchanged from your version (game logic).
-  // (Kept as-is; only scrolling + AdSense code were changed.)
   // ---------- RESPONSIVE CANVAS ----------
   let DPR = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
   let W = 0, H = 0;
@@ -622,17 +617,22 @@
     clampBird();
     rebuildScenery();
 
-    DIFF.base.pipeSpeed = null;
+    // ✅ difficulty base should match new screen size after resize/orientation
+    DIFF.base.pipeSpeed = null; // force recapture
     captureBaseDifficultyOnce();
     applyDifficultyByScore();
 
-    if (frozenOnDeath) deathSnapshot = null;
+    if (frozenOnDeath){
+      deathSnapshot = null;
+    }
   }
   window.addEventListener('resize', resizeCanvas);
 
+  // ---------- HELPERS ----------
   function rand(min, max){ return Math.random() * (max - min) + min; }
   function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
 
+  // ---------- GAME PARAMS ----------
   let gravity = 0.42;
   let jumpVel = -7.7;
   let pipeSpeed = 3.0;
@@ -662,7 +662,15 @@
     groundY = H - groundH;
   }
 
-  const DIFF = { base: { pipeSpeed:null, gapMin:null, gapMax:null, spawnEvery:null } };
+  // ---------- DIFFICULTY SCALING ----------
+  const DIFF = {
+    base: {
+      pipeSpeed: null,
+      gapMin: null,
+      gapMax: null,
+      spawnEvery: null,
+    }
+  };
 
   function captureBaseDifficultyOnce(){
     if (DIFF.base.pipeSpeed === null){
@@ -673,10 +681,9 @@
     }
   }
 
-  let score = 0;
-
   function applyDifficultyByScore(){
     captureBaseDifficultyOnce();
+
     const s = Math.min(score, 60);
     const t = s / 60;
     const ease = t * t * (3 - 2 * t);
@@ -695,9 +702,11 @@
     spawnEvery = Math.floor(clamp(spawnEvery, 58, 160));
   }
 
+  // ---------- GAME STATE ----------
   let running = false;
   let started = false;
   let frame = 0;
+  let score = 0;
   let lastTs = 0;
 
   const bird = { x: 0, y: 0, vy: 0, w: 56, h: 56 };
@@ -714,6 +723,7 @@
 
   let pipes = [];
 
+  // ---------- SCENERY ----------
   let stars = [];
   let glowDust = [];
   let shootingStars = [];
@@ -726,16 +736,32 @@
     const count = Math.floor(clamp((W*H)/22000, 90, 320));
     stars = [];
     for (let i=0;i<count;i++){
-      stars.push({ x: Math.random()*W, y: Math.random()*H*0.72, r: Math.random()*1.7 + 0.4, a: Math.random()*0.55 + 0.15, tw: Math.random()*1.2 + 0.2 });
+      stars.push({
+        x: Math.random()*W,
+        y: Math.random()*H*0.72,
+        r: Math.random()*1.7 + 0.4,
+        a: Math.random()*0.55 + 0.15,
+        tw: Math.random()*1.2 + 0.2
+      });
     }
   }
+
   function makeGlowDust(){
     const count = Math.floor(clamp((W*H)/45000, 35, 110));
     glowDust = [];
     for (let i=0;i<count;i++){
-      glowDust.push({ x: Math.random()*W, y: Math.random()*H*0.78, r: Math.random()*2.6 + 0.8, a: Math.random()*0.12 + 0.04, vx: -(Math.random()*0.25 + 0.08), vy: (Math.random()*0.10 - 0.05), p: Math.random()*Math.PI*2 });
+      glowDust.push({
+        x: Math.random()*W,
+        y: Math.random()*H*0.78,
+        r: Math.random()*2.6 + 0.8,
+        a: Math.random()*0.12 + 0.04,
+        vx: -(Math.random()*0.25 + 0.08),
+        vy: (Math.random()*0.10 - 0.05),
+        p: Math.random()*Math.PI*2
+      });
     }
   }
+
   function spawnShootingStar(initial=false){
     const y = rand(20, H*0.35);
     const x = initial ? rand(0, W) : rand(W*1.1, W*1.6);
@@ -743,18 +769,27 @@
     const sp = rand(9, 14);
     return { x, y, len, vx: -sp, vy: sp*0.28, life: rand(90, 160), t: 0 };
   }
+
   function makeShootingStars(){
     shootingStars = [];
     const count = Math.floor(clamp(W/700, 1, 3));
     for (let i=0;i<count;i++) shootingStars.push(spawnShootingStar(true));
   }
+
   function makeClouds(){
     const count = Math.floor(clamp(W/220, 5, 10));
     clouds = [];
     for (let i=0;i<count;i++){
-      clouds.push({ x: Math.random()*W, y: Math.random()*H*0.45 + 18, s: Math.random()*0.9 + 0.6, sp: (Math.random()*0.25 + 0.10), a: Math.random()*0.14 + 0.04 });
+      clouds.push({
+        x: Math.random()*W,
+        y: Math.random()*H*0.45 + 18,
+        s: Math.random()*0.9 + 0.6,
+        sp: (Math.random()*0.25 + 0.10),
+        a: Math.random()*0.14 + 0.04
+      });
     }
   }
+
   function makeBuildings(){
     buildings = [];
     const bw = Math.max(20, W/52);
@@ -766,6 +801,7 @@
       x += w + rand(6, 18);
     }
   }
+
   function makeMountains(){
     farMount = [];
     nearMount = [];
@@ -783,10 +819,17 @@
       nearMount.push({x,y});
     }
   }
+
   function rebuildScenery(){
-    makeStars(); makeGlowDust(); makeShootingStars(); makeClouds(); makeBuildings(); makeMountains();
+    makeStars();
+    makeGlowDust();
+    makeShootingStars();
+    makeClouds();
+    makeBuildings();
+    makeMountains();
   }
 
+  // ---------- AUDIO ----------
   async function ensureLoadingMusicPlaying(){
     try{
       loadingMusic.loop = true;
@@ -809,6 +852,7 @@
   function playSoundAndWait(audio){
     return new Promise((resolve) => {
       if (!audio) return resolve();
+
       const cleanup = () => {
         audio.removeEventListener('ended', onEnded);
         audio.removeEventListener('pause', onPause);
@@ -825,15 +869,21 @@
       try{
         audio.currentTime = 0;
         const p = audio.play();
-        if (p && typeof p.then === 'function') p.catch(() => { cleanup(); resolve(); });
-      } catch(e){ cleanup(); resolve(); }
+        if (p && typeof p.then === 'function') {
+          p.catch(() => { cleanup(); resolve(); });
+        }
+      } catch(e){
+        cleanup(); resolve();
+      }
     });
   }
 
+  // ---------- FLOW ----------
   function resetGame(){
     running = false;
     started = false;
     dyingLock = false;
+
     frozenOnDeath = false;
     deathSnapshot = null;
 
@@ -843,9 +893,11 @@
     gameOver.classList.add('hidden');
 
     applyDifficultyByScore();
+
     clampBird();
     bird.y = H * 0.45;
     bird.vy = 0;
+
     pipes = [];
     lastTs = 0;
   }
@@ -857,6 +909,7 @@
     gameWrap.classList.add('hidden');
     gameOver.classList.add('hidden');
     gameDisclaimer.classList.add('hidden');
+
     ensureLoadingMusicPlaying();
     setTimeout(() => showSelect(), 3200);
   }
@@ -869,8 +922,9 @@
     gameOver.classList.add('hidden');
     gameDisclaimer.classList.add('hidden');
 
-    // ✅ always start at top, still scrollable down to Eagle/Thoppi
+    // ✅ make sure you're at the top when opening select, but still scrollable down to Thoppi/Eagle
     try { select.scrollTop = 0; } catch(e) {}
+
     ensureLoadingMusicPlaying();
   }
 
@@ -894,19 +948,23 @@
     gameOver.classList.remove('hidden');
   }
 
+  // ---------- CHARACTER SELECT ----------
   document.querySelectorAll('.card').forEach(card => {
     card.addEventListener('click', () => {
       if (card.dataset.coming === "true") return;
       const key = card.getAttribute('data-char');
       if (!CHARACTERS[key]) return;
+
       pickCharacter(key);
       showGame();
     });
   });
 
   function pickCharacter(key){
+    selectedKey = key;
     const c = CHARACTERS[key];
     charNameEl.textContent = c?.label ?? '—';
+
     birdImg = new Image();
     birdImg.src = c.imgSrc;
 
@@ -918,12 +976,16 @@
     dieSfx.volume = 0.95;
   }
 
+  // ---------- INPUT ----------
   function doJump(){
     if (gameWrap.classList.contains('hidden')) return;
     if (!gameOver.classList.contains('hidden')) return;
     if (dyingLock) return;
 
-    if (!started){ started = true; running = true; }
+    if (!started){
+      started = true;
+      running = true;
+    }
     if (!running) return;
 
     bird.vy = jumpVel;
@@ -949,6 +1011,7 @@
     showSelect();
   });
 
+  // ---------- COLLISION ----------
   function rectsOverlap(ax, ay, aw, ah, bx, by, bw, bh){
     return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
   }
@@ -956,6 +1019,7 @@
   async function die(){
     if (dyingLock) return;
     dyingLock = true;
+
     running = false;
     stopLoadingMusic();
 
@@ -966,7 +1030,350 @@
     showGameOverMenu();
   }
 
-  function drawBackground(){ /* (unchanged) */ 
+  // ---------- DRAW HELPERS ----------
+  function drawNebula(){
+    const blobs = [
+      {x: W*0.20, y: H*0.22, r: Math.min(W,H)*0.55, a:0.18},
+      {x: W*0.78, y: H*0.30, r: Math.min(W,H)*0.52, a:0.14},
+      {x: W*0.55, y: H*0.10, r: Math.min(W,H)*0.45, a:0.10}
+    ];
+    for (const b of blobs){
+      const grad = ctx.createRadialGradient(b.x, b.y, b.r*0.12, b.x, b.y, b.r);
+      grad.addColorStop(0, `rgba(122,167,255,${b.a})`);
+      grad.addColorStop(0.6, `rgba(90,120,255,${b.a*0.55})`);
+      grad.addColorStop(1, `rgba(0,0,0,0)`);
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
+    }
+  }
+
+  function drawMoon(){
+    const r = Math.max(40, Math.min(98, Math.min(W,H)*0.085));
+    const x = W*0.83;
+    const y = H*0.16;
+
+    const glow = ctx.createRadialGradient(x,y, r*0.2, x,y, r*2.8);
+    glow.addColorStop(0, 'rgba(122,167,255,0.22)');
+    glow.addColorStop(1, 'rgba(122,167,255,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(x,y, r*2.4, 0, Math.PI*2); ctx.fill();
+
+    const m = ctx.createRadialGradient(x - r*0.2, y - r*0.2, r*0.3, x, y, r);
+    m.addColorStop(0, 'rgba(240,248,255,0.95)');
+    m.addColorStop(1, 'rgba(190,210,255,0.75)');
+    ctx.fillStyle = m;
+    ctx.beginPath(); ctx.arc(x,y, r, 0, Math.PI*2); ctx.fill();
+
+    ctx.fillStyle = 'rgba(60,80,120,0.18)';
+    for (let i=0;i<8;i++){
+      const cx = x + rand(-r*0.45, r*0.35);
+      const cy = y + rand(-r*0.35, r*0.35);
+      const cr = rand(r*0.06, r*0.12);
+      ctx.beginPath(); ctx.arc(cx,cy,cr,0,Math.PI*2); ctx.fill();
+    }
+  }
+
+  function drawStars(){
+    for (const s of stars){
+      const tw = (Math.sin((frame*0.02)*s.tw + s.x*0.03) + 1) * 0.5;
+      const a = s.a * (0.55 + tw*0.45);
+      ctx.fillStyle = `rgba(255,255,255,${a})`;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+
+  function drawShootingStars(){
+    for (let i=0;i<shootingStars.length;i++){
+      const st = shootingStars[i];
+      st.t++;
+      st.x += st.vx;
+      st.y += st.vy;
+
+      const t = st.t / st.life;
+      const alpha = (t < 0.2) ? (t/0.2) : (t > 0.9 ? (1-(t-0.9)/0.1) : 1);
+      const len = st.len;
+
+      ctx.save();
+      ctx.translate(st.x, st.y);
+      ctx.rotate(Math.atan2(st.vy, st.vx));
+      const g = ctx.createLinearGradient(0,0, len,0);
+      g.addColorStop(0, `rgba(255,255,255,0)`);
+      g.addColorStop(0.4, `rgba(122,167,255,${0.25*alpha})`);
+      g.addColorStop(1, `rgba(255,255,255,${0.45*alpha})`);
+      ctx.strokeStyle = g;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0,0);
+      ctx.lineTo(len,0);
+      ctx.stroke();
+      ctx.restore();
+
+      if (st.t >= st.life || st.x < -300 || st.y > H*0.6){
+        shootingStars[i] = spawnShootingStar(false);
+      }
+    }
+  }
+
+  function drawGlowDust(){
+    for (const p of glowDust){
+      p.p += 0.02;
+      p.x += p.vx * pipeSpeed;
+      p.y += p.vy;
+
+      if (p.x < -50) p.x = W + 50;
+      if (p.y < 0) p.y = H*0.78;
+      if (p.y > H*0.82) p.y = H*0.2;
+
+      const wob = Math.sin(p.p + p.x*0.01) * 2.0;
+      const rr = p.r * (0.85 + Math.sin(p.p)*0.15);
+
+      const g = ctx.createRadialGradient(p.x, p.y+wob, 0, p.x, p.y+wob, rr*3.4);
+      g.addColorStop(0, `rgba(122,167,255,${p.a})`);
+      g.addColorStop(1, `rgba(122,167,255,0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y+wob, rr*3.2, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+
+  function drawClouds(){
+    const drift = pipeSpeed * 0.22;
+    for (const c of clouds){
+      c.x -= (drift * c.sp);
+      if (c.x < -260*c.s) c.x = W + 320*c.s;
+
+      const x = c.x;
+      const y = c.y + Math.sin((frame*0.01) + c.y*0.02) * 2;
+
+      ctx.fillStyle = `rgba(255,255,255,${c.a})`;
+      const w = 240*c.s;
+      const h = 75*c.s;
+      ctx.beginPath();
+      ctx.ellipse(x, y, w*0.45, h*0.40, 0, 0, Math.PI*2);
+      ctx.ellipse(x + w*0.22, y - h*0.12, w*0.36, h*0.30, 0, 0, Math.PI*2);
+      ctx.ellipse(x - w*0.18, y - h*0.08, w*0.33, h*0.28, 0, 0, Math.PI*2);
+      ctx.ellipse(x + w*0.40, y + h*0.05, w*0.30, h*0.25, 0, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+
+  function drawMountains(){
+    const off = (frame * pipeSpeed * 0.10) % W;
+    ctx.fillStyle = 'rgba(122,167,255,0.10)';
+    ctx.beginPath();
+    ctx.moveTo(-W, groundY);
+    for (let i=0;i<farMount.length;i++){
+      const pt = farMount[i];
+      ctx.lineTo(pt.x - off, pt.y);
+    }
+    for (let i=0;i<farMount.length;i++){
+      const pt = farMount[i];
+      ctx.lineTo(pt.x - off + W, pt.y);
+    }
+    ctx.lineTo(W*2, groundY);
+    ctx.closePath();
+    ctx.fill();
+
+    const off2 = (frame * pipeSpeed * 0.18) % W;
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.beginPath();
+    ctx.moveTo(-W, groundY);
+    for (let i=0;i<nearMount.length;i++){
+      const pt = nearMount[i];
+      ctx.lineTo(pt.x - off2, pt.y);
+    }
+    for (let i=0;i<nearMount.length;i++){
+      const pt = nearMount[i];
+      ctx.lineTo(pt.x - off2 + W, pt.y);
+    }
+    ctx.lineTo(W*2, groundY);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function drawSkyline(){
+    const off = (frame * pipeSpeed * 0.40) % (W + 260);
+    const baseY = groundY - H*0.02;
+
+    const haze = ctx.createLinearGradient(0, baseY - H*0.32, 0, baseY + H*0.05);
+    haze.addColorStop(0, 'rgba(122,167,255,0)');
+    haze.addColorStop(1, 'rgba(122,167,255,0.14)');
+    ctx.fillStyle = haze;
+    ctx.fillRect(0, baseY - H*0.32, W, H*0.36);
+
+    ctx.fillStyle = 'rgba(0,0,0,0.70)';
+    ctx.fillRect(0, baseY - H*0.32, W, H*0.32);
+
+    for (const b of buildings){
+      const x = (b.x - off + (W + 260)) % (W + 260) - 130;
+      const y = baseY - b.h;
+
+      ctx.fillStyle = 'rgba(0,0,0,0.80)';
+      ctx.fillRect(x, y, b.w, b.h);
+
+      if (b.tw){
+        const cols = clamp(Math.floor(b.w/10), 2, 10);
+        const rows = clamp(Math.floor(b.h/14), 3, 16);
+        for (let r=0;r<rows;r++){
+          for (let c=0;c<cols;c++){
+            if (Math.random() < 0.035) {
+              const px = x + 3 + c*(b.w/(cols+1));
+              const py = y + 6 + r*(b.h/(rows+1));
+              ctx.fillStyle = 'rgba(122,167,255,0.22)';
+              ctx.fillRect(px, py, 2, 2);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  function drawGround(){
+    const g = ctx.createLinearGradient(0, groundY, 0, H);
+    g.addColorStop(0, 'rgba(10,10,14,1)');
+    g.addColorStop(1, 'rgba(0,0,0,1)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, groundY, W, groundH);
+
+    ctx.fillStyle = 'rgba(122,167,255,0.20)';
+    ctx.fillRect(0, groundY, W, 2);
+
+    const speed = pipeSpeed * 2.35;
+    const off = (frame * speed) % 64;
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    for (let x=-64; x < W+64; x+=64){
+      ctx.beginPath();
+      ctx.moveTo(x - off, groundY + 18);
+      ctx.lineTo(x + 32 - off, groundY + 10);
+      ctx.lineTo(x + 46 - off, groundY + 18);
+      ctx.lineTo(x + 14 - off, groundY + 26);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    for (let i=0;i<28;i++){
+      const x = ((i*101) + frame*1.3) % W;
+      const y = groundY + 10 + (i*19 % (groundH-18));
+      ctx.fillRect(x, y, 2, 2);
+    }
+  }
+
+  function drawPipes(){
+    pipes.forEach(p => {
+      const topH = p.gapY;
+      const bottomY = p.gapY + p.gapH;
+      const bottomH = groundY - bottomY;
+
+      const body = ctx.createLinearGradient(p.x, 0, p.x + pipeWidth, 0);
+      body.addColorStop(0, 'rgba(122,167,255,0.20)');
+      body.addColorStop(0.5, 'rgba(255,255,255,0.10)');
+      body.addColorStop(1, 'rgba(122,167,255,0.16)');
+
+      ctx.fillStyle = body;
+      ctx.fillRect(p.x, 0, pipeWidth, topH);
+      ctx.fillStyle = 'rgba(255,255,255,0.10)';
+      ctx.fillRect(p.x - 6, topH - 18, pipeWidth + 12, 18);
+
+      ctx.fillStyle = body;
+      ctx.fillRect(p.x, bottomY, pipeWidth, bottomH);
+      ctx.fillStyle = 'rgba(255,255,255,0.10)';
+      ctx.fillRect(p.x - 6, bottomY, pipeWidth + 12, 18);
+
+      ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+      ctx.lineWidth = 2;
+      if (topH > 4) ctx.strokeRect(p.x+1, 1, pipeWidth-2, topH-2);
+      if (bottomH > 4) ctx.strokeRect(p.x+1, bottomY+1, pipeWidth-2, bottomH-2);
+
+      ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+      ctx.beginPath();
+      ctx.moveTo(p.x + pipeWidth*0.35, 0);
+      ctx.lineTo(p.x + pipeWidth*0.35, topH);
+      ctx.moveTo(p.x + pipeWidth*0.35, bottomY);
+      ctx.lineTo(p.x + pipeWidth*0.35, bottomY + bottomH);
+      ctx.stroke();
+    });
+  }
+
+  function drawRoundAvatar(img, x, y, size){
+    const r = size/2;
+
+    const glow = ctx.createRadialGradient(x+r, y+r, r*0.2, x+r, y+r, r*2.0);
+    glow.addColorStop(0, 'rgba(122,167,255,0.22)');
+    glow.addColorStop(1, 'rgba(122,167,255,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(x+r, y+r, r*2.0, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x+r, y+r, r, 0, Math.PI*2);
+    ctx.clip();
+
+    const bg = ctx.createRadialGradient(x+r*0.8, y+r*0.8, r*0.2, x+r, y+r, r);
+    bg.addColorStop(0, 'rgba(255,255,255,0.08)');
+    bg.addColorStop(1, 'rgba(0,0,0,0.35)');
+    ctx.fillStyle = bg;
+    ctx.fillRect(x, y, size, size);
+
+    const hasImg = img && img.complete && img.naturalWidth > 0;
+    if (hasImg){
+      const iw = img.naturalWidth;
+      const ih = img.naturalHeight;
+      const scale = Math.min(size / iw, size / ih);
+      const dw = iw * scale;
+      const dh = ih * scale;
+      const dx = x + (size - dw)/2;
+      const dy = y + (size - dh)/2;
+      ctx.drawImage(img, dx, dy, dw, dh);
+    } else {
+      ctx.fillStyle = 'rgba(255,255,255,0.12)';
+      ctx.fillRect(x+size*0.15, y+size*0.15, size*0.70, size*0.70);
+    }
+
+    ctx.restore();
+
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+    ctx.beginPath();
+    ctx.arc(x+r, y+r, r - 1.5, 0, Math.PI*2);
+    ctx.stroke();
+
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(122,167,255,0.22)';
+    ctx.beginPath();
+    ctx.arc(x+r, y+r, r - 5, 0, Math.PI*2);
+    ctx.stroke();
+  }
+
+  function drawBird(){
+    const tilt = clamp(bird.vy / 10, -0.55, 0.75);
+
+    ctx.save();
+    const cx = bird.x + bird.w/2;
+    const cy = bird.y + bird.h/2;
+    ctx.translate(cx, cy);
+    ctx.rotate(tilt);
+    ctx.translate(-bird.w/2, -bird.h/2);
+
+    drawRoundAvatar(birdImg, 0, 0, bird.w);
+
+    ctx.restore();
+  }
+
+  function drawVignette(){
+    const v = ctx.createRadialGradient(W/2, H/2, Math.min(W,H)*0.20, W/2, H/2, Math.max(W,H)*0.95);
+    v.addColorStop(0, 'rgba(0,0,0,0)');
+    v.addColorStop(1, 'rgba(0,0,0,0.70)');
+    ctx.fillStyle = v;
+    ctx.fillRect(0,0,W,H);
+  }
+
+  function drawBackground(){
     const sky = ctx.createLinearGradient(0,0,0,H);
     sky.addColorStop(0, '#02030a');
     sky.addColorStop(0.42, '#050721');
@@ -974,13 +1381,105 @@
     ctx.fillStyle = sky;
     ctx.fillRect(0,0,W,H);
 
-    // NOTE: keeping your visuals minimal here would remove too much;
-    // your original draw calls continue below in your version.
+    drawNebula();
+    drawStars();
+    drawShootingStars();
+    drawGlowDust();
+    drawMoon();
+    drawClouds();
+    drawMountains();
+    drawSkyline();
+    drawGround();
+    drawVignette();
   }
 
-  // ✅ Your existing draw functions + pipe logic remain in your original file.
-  // To keep this response manageable, I did not retype every draw helper again.
-  // If you want, paste your remaining draw functions below this point exactly as you had them.
+  function spawnPipe(){
+    const gapH = rand(gapMin, gapMax);
+    const padTop = Math.max(54, H*0.10);
+    const padBottom = Math.max(74, groundH + 34);
+    const maxGapY = Math.max(padTop, (groundY - padBottom - gapH));
+    const gapY = rand(padTop, maxGapY);
+    pipes.push({ x: W + 24, gapY, gapH, passed:false });
+  }
+
+  function update(dt){
+    const step = clamp(dt, 0.55, 1.85);
+    frame++;
+
+    if (started && running){
+      bird.vy += gravity * step;
+      bird.y += bird.vy * step;
+
+      if (frame % spawnEvery === 0) spawnPipe();
+
+      pipes.forEach(p => p.x -= pipeSpeed * step);
+      if (pipes.length && pipes[0].x < -pipeWidth - 80) pipes.shift();
+
+      pipes.forEach(p => {
+        if (!p.passed && p.x + pipeWidth < bird.x){
+          p.passed = true;
+          score++;
+          scoreEl.textContent = String(score);
+          applyDifficultyByScore();
+        }
+      });
+
+      if (bird.y < 0 || bird.y + bird.h > groundY){
+        die();
+        return;
+      }
+
+      for (const p of pipes){
+        const topRect = { x:p.x, y:0, w:pipeWidth, h:p.gapY };
+        const bottomRect = { x:p.x, y:p.gapY + p.gapH, w:pipeWidth, h:(groundY - (p.gapY + p.gapH)) };
+
+        if (
+          rectsOverlap(bird.x, bird.y, bird.w, bird.h, topRect.x, topRect.y, topRect.w, topRect.h) ||
+          rectsOverlap(bird.x, bird.y, bird.w, bird.h, bottomRect.x, bottomRect.y, bottomRect.w, bottomRect.h)
+        ){
+          die();
+          return;
+        }
+      }
+    } else {
+      bird.y += Math.sin(frame/18) * 0.25;
+      bird.y = clamp(bird.y, 10, groundY - bird.h - 10);
+    }
+  }
+
+  function loop(ts){
+    if (gameWrap.classList.contains('hidden')) return;
+
+    if (frozenOnDeath){
+      if (!drawDeathSnapshot()){
+        drawBackground();
+        drawPipes();
+        drawBird();
+      }
+      requestAnimationFrame(loop);
+      return;
+    }
+
+    if (!gameOver.classList.contains('hidden')){
+      drawBackground();
+      drawPipes();
+      drawBird();
+      requestAnimationFrame(loop);
+      return;
+    }
+
+    if (!lastTs) lastTs = ts;
+    const deltaMs = ts - lastTs;
+    lastTs = ts;
+    const dt = deltaMs / 16.6667;
+
+    drawBackground();
+    drawPipes();
+    drawBird();
+    update(dt);
+
+    requestAnimationFrame(loop);
+  }
 
   // ---------- START ----------
   resizeCanvas();
